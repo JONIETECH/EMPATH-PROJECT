@@ -14,25 +14,16 @@ try:
     import mne
     from sklearn.model_selection import train_test_split
     import torch.optim as optim
+    from model import ContrastiveModel
 except ModuleNotFoundError as e:
     print(f"Error: {e}. Please install the missing module and try again.")
     exit()
 
-class ContrastiveModel(nn.Module):
-    def __init__(self, input_dim, output_dim=128):
-        super(ContrastiveModel, self).__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(input_dim, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, output_dim)
-        )
-    def forward(self, x):
-        return self.fc(x)
+# Assuming X_train, train_loader, and test_loader are already defined
+model = ContrastiveModel(X_train.shape[1]).cuda()
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-4)
+scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20)
 
 def train_model(model, train_loader, criterion, optimizer, scheduler, epochs=50):
     model.train()
@@ -76,12 +67,6 @@ def plot_confusion_matrix(y_true, y_pred):
     plt.ylabel("True Label")
     plt.title("Confusion Matrix for Optimized Contrastive Model")
     plt.show()
-
-# Assuming X_train, train_loader, and test_loader are already defined
-model = ContrastiveModel(X_train.shape[1]).cuda()
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-4)
-scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20)
 
 train_model(model, train_loader, criterion, optimizer, scheduler)
 y_true, y_pred = evaluate_model(model, test_loader)

@@ -1,4 +1,5 @@
 import torch
+from model import ContrastiveModel
 
 # Assuming 'model' is your trained model
 model_path = "contrastive_model.pth"

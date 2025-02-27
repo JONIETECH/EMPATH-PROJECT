@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from model_checkpoint import ContrastiveModel
+from model import ContrastiveModel
 
 # Load the model
 input_dim = 128  # Replace with the actual input dimension

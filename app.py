@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import torch
 import numpy as np
-from model_checkpoint import ContrastiveModel
+from model import ContrastiveModel
 
 app = Flask(__name__)
 
