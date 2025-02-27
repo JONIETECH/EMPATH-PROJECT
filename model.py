@@ -1,5 +1,3 @@
-from IPython import get_ipython
-from IPython.display import display
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
