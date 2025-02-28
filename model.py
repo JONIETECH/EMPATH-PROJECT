@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import pywt
 import os
+import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -13,6 +14,9 @@ from torch.utils.data import DataLoader, Dataset
 import mne
 from sklearn.model_selection import train_test_split
 import torch.optim as optim
+
+# Check if CUDA is available
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Define your dataset class
 class CustomDataset(Dataset):
@@ -27,12 +31,17 @@ class CustomDataset(Dataset):
         return self.data[idx], self.labels[idx]
 
 # Load and preprocess your data
-# Assuming you have a function to load your data
-# X, y = load_data()  # Replace with your data loading function
+# Assuming your dataset is in a CSV file in the dataset folder
+data_path = "/c:/Users/Uncle Shimmy/Desktop/ml code/EMPATH-PROJECT/dataset/data.csv"
+data = pd.read_csv(data_path)
 
-# For demonstration, let's create dummy data
-X = np.random.rand(1000, 128)  # 1000 samples, 128 features
-y = np.random.randint(0, 2, 1000)  # Binary labels
+# Assuming the last column is the label and the rest are features
+X = data.iloc[:, :-1].values
+y = data.iloc[:, -1].values
+
+# Standardize the features
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
 
 # Split the data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -60,7 +69,7 @@ class ContrastiveModel(nn.Module):
     def forward(self, x):
         return self.fc(x)
 
-model = ContrastiveModel(X_train.shape[1]).cuda()
+model = ContrastiveModel(X_train.shape[1]).to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-4)  # L2 Regularization
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20)
@@ -72,7 +81,7 @@ def train_model(model, train_loader, criterion, optimizer, scheduler, epochs=50)
     for epoch in range(epochs):
         total_loss = 0
         for x_batch, y_batch in train_loader:
-            x_batch, y_batch = x_batch.cuda(), y_batch.cuda()
+            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
             optimizer.zero_grad()
             with torch.cuda.amp.autocast():
                 outputs = model(x_batch)
@@ -90,7 +99,7 @@ def evaluate_model(model, test_loader):
     y_pred, y_true = [], []
     with torch.no_grad():
         for x_batch, y_batch in test_loader:
-            x_batch = x_batch.cuda()
+            x_batch = x_batch.to(device)
             outputs = model(x_batch)
             predictions = torch.argmax(outputs, dim=1).cpu()
             y_pred.extend(predictions.numpy())

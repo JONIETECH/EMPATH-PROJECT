@@ -19,8 +19,11 @@ except ModuleNotFoundError as e:
     print(f"Error: {e}. Please install the missing module and try again.")
     exit()
 
+# Check if CUDA is available
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # Assuming X_train, train_loader, and test_loader are already defined
-model = ContrastiveModel(X_train.shape[1]).cuda()
+model = ContrastiveModel(X_train.shape[1]).to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-4)
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20)
@@ -31,7 +34,7 @@ def train_model(model, train_loader, criterion, optimizer, scheduler, epochs=50)
     for epoch in range(epochs):
         total_loss = 0
         for x_batch, y_batch in train_loader:
-            x_batch, y_batch = x_batch.cuda(), y_batch.cuda()
+            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
             optimizer.zero_grad()
             with torch.cuda.amp.autocast():
                 outputs = model(x_batch)
@@ -48,7 +51,7 @@ def evaluate_model(model, test_loader):
     y_pred, y_true = [], []
     with torch.no_grad():
         for x_batch, y_batch in test_loader:
-            x_batch = x_batch.cuda()
+            x_batch = x_batch.to(device)
             outputs = model(x_batch)
             predictions = torch.argmax(outputs, dim=1).cpu()
             y_pred.extend(predictions.numpy())
