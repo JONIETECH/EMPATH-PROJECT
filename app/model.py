@@ -5,8 +5,6 @@ import numpy as np
 import os
 import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
-import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 from torch.nn.utils import weight_norm
 from torch.utils.data import DataLoader, Dataset
