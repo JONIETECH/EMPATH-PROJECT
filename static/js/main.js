@@ -34,13 +34,13 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             resultAlert.textContent = `Analysis Result: ${data.message}`;
         } else {
             resultAlert.className = 'alert alert-danger';
-            resultAlert.textContent = `Error: ${data.detail || data.message || 'Unknown error'}`;
+            resultAlert.textContent = `Error: ${data.detail || 'Error processing the file. Please try again.'}`;
         }
     } catch (error) {
         loading.style.display = 'none';
         results.style.display = 'block';
         resultAlert.className = 'alert alert-danger';
-        resultAlert.textContent = 'Error processing the request';
+        resultAlert.textContent = 'Network error or server unavailable. Please try again later.';
         console.error('Error:', error);
     }
 }); 

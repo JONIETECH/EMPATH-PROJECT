@@ -45,7 +45,7 @@ app.add_middleware(
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load the model
-input_dim = 128
+input_dim = 155  # Update this to match your model's actual input dimension
 model = None
 
 def load_model():
@@ -100,8 +100,14 @@ def process_edf_file(file_path):
         # Basic preprocessing
         raw.filter(1, 40, fir_design='firwin')
         
+        # Print number of channels for debugging
+        print(f"Number of EEG channels: {len(raw.ch_names)}")
+        
         # Extract features using the same function as training
         features = extract_features(raw)
+        
+        # Print feature shape for debugging
+        print(f"Extracted features shape: {features.shape}")
         
         return features
     except Exception as e:
@@ -113,26 +119,44 @@ async def analyze(file: UploadFile = File(...)):
         if not file.filename.endswith('.edf'):
             raise HTTPException(status_code=400, detail="Invalid file format. Please upload an EDF file.")
 
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(suffix='.edf', delete=False) as temp_file:
+        # Create a unique temporary file name
+        temp_dir = tempfile.gettempdir()
+        temp_file_path = os.path.join(temp_dir, f"temp_{os.urandom(8).hex()}.edf")
+        
+        try:
+            # Save the uploaded file
             content = await file.read()
-            temp_file.write(content)
-            temp_file.flush()
-            
-            # Process the file using our feature extraction
-            features = process_edf_file(temp_file.name)
-            
-            # Remove temporary file
-            os.unlink(temp_file.name)
+            with open(temp_file_path, 'wb') as f:
+                f.write(content)
 
-            # Ensure features match expected input dimension
-            if len(features) > input_dim:
-                features = features[:input_dim]
-            elif len(features) < input_dim:
+            # Process the file using our feature extraction
+            features = process_edf_file(temp_file_path)
+
+            # Print shapes for debugging
+            print(f"Original features shape: {features.shape}")
+            
+            # Reshape features to match model input
+            features = features.reshape(-1)  # Flatten the array
+            
+            # Calculate number of features per channel (5 features: mean, std, power, peak_freq, hjorth)
+            features_per_channel = 5
+            
+            # Take only the features we need (input_dim // features_per_channel channels)
+            num_channels_needed = input_dim // features_per_channel
+            features = features[:num_channels_needed * features_per_channel]
+            
+            # Pad if we don't have enough features
+            if len(features) < input_dim:
                 features = np.pad(features, (0, input_dim - len(features)))
+            elif len(features) > input_dim:
+                features = features[:input_dim]
+
+            print(f"Final features shape: {features.shape}")
 
             # Make prediction
             input_tensor = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+            print(f"Input tensor shape: {input_tensor.shape}")
+            
             with torch.no_grad():
                 output = model(input_tensor)
                 prediction = torch.argmax(output, dim=1).item()
@@ -143,7 +167,17 @@ async def analyze(file: UploadFile = File(...)):
                 'message': 'High Stress' if prediction == 1 else 'Low Stress'
             })
 
+        finally:
+            # Clean up the temporary file
+            if os.path.exists(temp_file_path):
+                try:
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    print(f"Warning: Could not delete temporary file {temp_file_path}: {e}")
+
     except Exception as e:
+        # Log the error for debugging
+        print(f"Error in analyze endpoint: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 # Rest of your routes remain the same... 
