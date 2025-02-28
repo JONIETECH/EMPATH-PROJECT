@@ -31,16 +31,16 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
 
         if (data.status === 'success') {
             resultAlert.className = 'alert alert-success';
-            let stressLevel = data.prediction === 1 ? 'High Stress' : 'Low Stress';
-            resultAlert.textContent = `Analysis Result: ${stressLevel}`;
+            resultAlert.textContent = `Analysis Result: ${data.message}`;
         } else {
             resultAlert.className = 'alert alert-danger';
-            resultAlert.textContent = `Error: ${data.message}`;
+            resultAlert.textContent = `Error: ${data.detail || data.message || 'Unknown error'}`;
         }
     } catch (error) {
         loading.style.display = 'none';
         results.style.display = 'block';
         resultAlert.className = 'alert alert-danger';
         resultAlert.textContent = 'Error processing the request';
+        console.error('Error:', error);
     }
 }); 
