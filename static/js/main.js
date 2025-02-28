@@ -21,7 +21,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
 
         const response = await fetch('/analyze', {
             method: 'POST',
-            body: formData
+            body: formData,
         });
 
         const data = await response.json();

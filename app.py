@@ -1,4 +1,9 @@
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+from fastapi.requests import Request
 import torch
 import numpy as np
 from model import ContrastiveModel
@@ -6,7 +11,11 @@ import os
 import mne
 import tempfile
 
-app = Flask(__name__)
+app = FastAPI(title="EEG Stress Detection")
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 # Check if CUDA is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -22,13 +31,13 @@ def load_model():
     model.to(device)
     model.eval()
 
-@app.before_first_request
-def initialize():
+@app.on_event("startup")
+async def startup_event():
     load_model()
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 def process_eeg_file(file_path):
     # Read EEG file using MNE
@@ -51,32 +60,20 @@ def process_eeg_file(file_path):
     
     return features
 
-@app.route('/analyze', methods=['POST'])
-def analyze():
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...)):
     try:
-        if 'file' not in request.files:
-            return jsonify({
-                'status': 'error',
-                'message': 'No file uploaded'
-            }), 400
-
-        file = request.files['file']
-        
-        if file.filename == '':
-            return jsonify({
-                'status': 'error',
-                'message': 'No file selected'
-            }), 400
-
         if not file.filename.endswith('.edf'):
-            return jsonify({
-                'status': 'error',
-                'message': 'Invalid file format. Please upload an EDF file.'
-            }), 400
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file format. Please upload an EDF file."
+            )
 
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(suffix='.edf', delete=False) as temp_file:
-            file.save(temp_file.name)
+            content = await file.read()
+            temp_file.write(content)
+            temp_file.flush()
             features = process_eeg_file(temp_file.name)
 
         # Remove temporary file
@@ -88,21 +85,17 @@ def analyze():
             output = model(input_tensor)
             prediction = torch.argmax(output, dim=1).item()
 
-        return jsonify({
+        return JSONResponse({
             'status': 'success',
             'prediction': prediction
         })
 
     except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 400
+        raise HTTPException(status_code=400, detail=str(e))
 
-@app.route('/predict', methods=['POST'])
-def predict():
+@app.post("/predict")
+async def predict(data: dict):
     try:
-        data = request.json
         input_data = np.array(data['input'])
         input_tensor = torch.tensor(input_data, dtype=torch.float32).unsqueeze(0).to(device)
         
@@ -110,16 +103,13 @@ def predict():
             output = model(input_tensor)
             prediction = torch.argmax(output, dim=1).item()
         
-        return jsonify({
+        return {
             'status': 'success',
             'prediction': prediction
-        })
+        }
     except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 400
+        raise HTTPException(status_code=400, detail=str(e))
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
