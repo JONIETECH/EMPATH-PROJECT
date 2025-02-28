@@ -37,7 +37,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://your-render-app-name.onrender.com",  # Update this with your Render domain
+        "*",  # Allow all origins in production
         "http://localhost:8000",
         "http://127.0.0.1:8000"
     ],
