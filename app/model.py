@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-import pywt
 import os
 import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
@@ -15,6 +14,13 @@ import mne
 from sklearn.model_selection import train_test_split
 import torch.optim as optim
 from joblib import dump, load
+
+try:
+    import pywt
+    HAS_WAVELETS = True
+except ImportError:
+    HAS_WAVELETS = False
+    print("Warning: PyWavelets not available. Some features will be disabled.")
 
 # Check if CUDA is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -44,6 +50,11 @@ def extract_features(raw):
         
         # Hjorth parameters
         hjorth_mobility = np.sqrt(np.var(np.diff(signal_data)) / np.var(signal_data))
+        
+        # Add wavelet features if available
+        if HAS_WAVELETS:
+            # Add your wavelet feature extraction here
+            pass
         
         features.extend([mean_val, std_val, power, peak_freq, hjorth_mobility])
     
