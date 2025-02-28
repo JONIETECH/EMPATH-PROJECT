@@ -68,8 +68,9 @@ def load_model():
 
 @app.on_event("startup")
 async def startup_event():
+    print("Starting up FastAPI application...")
     if not load_model():
-        print("Warning: Model failed to load")
+        raise RuntimeError("Failed to load model")
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -183,5 +184,10 @@ async def analyze(file: UploadFile = File(...)):
         # Log the error for debugging
         print(f"Error in analyze endpoint: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
+
+# Make sure app is available at module level
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 # Rest of your routes remain the same... 
