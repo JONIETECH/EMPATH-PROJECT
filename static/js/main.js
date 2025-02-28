@@ -33,6 +33,9 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         if (data.status === 'success') {
             resultAlert.className = 'alert alert-success';
             resultAlert.textContent = `Analysis Result: ${data.message}`;
+        } else if (response.status === 503) {
+            resultAlert.className = 'alert alert-warning';
+            resultAlert.textContent = 'Model is still loading. Please try again in a few moments.';
         } else {
             resultAlert.className = 'alert alert-danger';
             resultAlert.textContent = `Error: ${data.detail || 'Error processing the file. Please try again.'}`;

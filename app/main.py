@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.background import BackgroundTasks
 import torch
 import numpy as np
 from pathlib import Path
@@ -48,29 +49,39 @@ app.add_middleware(
 # Check if CUDA is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load the model
-input_dim = 155  # Update this to match your model's actual input dimension
+# Global variables
 model = None
+model_loaded = False
+model_loading = False
 
 def load_model():
-    global model
+    global model, model_loaded, model_loading
     try:
+        if model_loaded:
+            return True
+        if model_loading:
+            return False
+        
+        model_loading = True
         model_path = BASE_DIR / "best_model.joblib"
         if not model_path.exists():
             raise FileNotFoundError(f"Model file not found at {model_path}")
         model = ContrastiveModel.load_model(str(model_path))
         model.to(device)
         model.eval()
+        model_loaded = True
+        model_loading = False
         return True
     except Exception as e:
         print(f"Error loading model: {str(e)}")
+        model_loading = False
         return False
 
 @app.on_event("startup")
 async def startup_event():
     print("Starting up FastAPI application...")
-    if not load_model():
-        raise RuntimeError("Failed to load model")
+    # Start model loading in background
+    BackgroundTasks().add_task(load_model)
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -87,7 +98,8 @@ async def health_check():
         model_path = BASE_DIR / "best_model.joblib"
         return {
             "status": "healthy",
-            "model_loaded": model is not None,
+            "model_loaded": model_loaded,
+            "model_loading": model_loading,
             "model_file_exists": model_path.exists()
         }
     except Exception as e:
@@ -121,6 +133,11 @@ def process_edf_file(file_path):
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     try:
+        if not model_loaded:
+            raise HTTPException(
+                status_code=503,
+                detail="Model is still loading. Please try again in a few moments."
+            )
         if not file.filename.endswith('.edf'):
             raise HTTPException(status_code=400, detail="Invalid file format. Please upload an EDF file.")
 

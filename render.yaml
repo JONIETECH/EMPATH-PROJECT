@@ -3,9 +3,13 @@ services:
     name: empath-eeg
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app.main:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120
+    startCommand: gunicorn app.main:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 300 --graceful-timeout 300 --keep-alive 120
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18
       - key: PORT
-        value: 8000 
+        value: 8000
+      - key: WEB_CONCURRENCY
+        value: 1
+    healthCheckPath: /health
+    healthCheckTimeout: 300 
