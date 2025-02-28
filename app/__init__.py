@@ -7,4 +7,4 @@ from fastapi import FastAPI
 application = app
 
 # For compatibility with both gunicorn and uvicorn
-__all__ = ['app', 'application']
+__all__ = ['app']

@@ -21,4 +21,4 @@ RUN mkdir -p static templates
 EXPOSE 8000
 
 # Start the application
-CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "app:application", "--bind", "0.0.0.0:8000"] 
+CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "wsgi:application", "--bind", "0.0.0.0:8000"] 
