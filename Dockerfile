@@ -17,6 +17,10 @@ COPY . .
 # Create necessary directories if they don't exist
 RUN mkdir -p static templates
 
+# Verify template files exist
+RUN ls -la templates/
+RUN ls -la static/
+
 # Make port 8000 available
 EXPOSE 8000
 

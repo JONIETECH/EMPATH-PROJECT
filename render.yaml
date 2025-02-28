@@ -9,5 +9,8 @@ services:
         value: 3.9.18
       - key: PORT
         value: 8000
+      - key: PYTHONPATH
+        value: .
     healthCheckPath: /health
-    healthCheckTimeout: 300 
+    healthCheckTimeout: 300
+    staticPublishPath: ./static 

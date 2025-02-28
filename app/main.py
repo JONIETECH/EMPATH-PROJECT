@@ -88,10 +88,23 @@ async def startup_event():
 async def home(request: Request):
     print("Accessing home route")
     try:
-        return templates.TemplateResponse("index.html", {"request": request})
+        return templates.TemplateResponse(
+            "index.html", 
+            {
+                "request": request,
+                "app_name": "EEG Stress Detection"
+            }
+        )
     except Exception as e:
         print(f"Error rendering template: {str(e)}")
+        # Log more details about the error
+        import traceback
+        print(traceback.format_exc())
         return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+
+@app.head("/")
+async def head_root():
+    return HTMLResponse(content="")
 
 @app.get("/health")
 async def health_check():
