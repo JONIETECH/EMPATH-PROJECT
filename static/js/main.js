@@ -1,6 +1,7 @@
 document.getElementById('uploadForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
+    const API_URL = window.location.origin;  // This will work for both local and production
     const fileInput = document.getElementById('eegFile');
     const file = fileInput.files[0];
     const loading = document.getElementById('loading');
@@ -19,7 +20,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         loading.style.display = 'block';
         results.style.display = 'none';
 
-        const response = await fetch('/analyze', {
+        const response = await fetch(`${API_URL}/analyze`, {
             method: 'POST',
             body: formData,
         });
