@@ -53,6 +53,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = None
 model_loaded = False
 model_loading = False
+input_dim = 155  # Number of features (31 channels * 5 features per channel)
 
 def load_model():
     global model, model_loaded, model_loading
