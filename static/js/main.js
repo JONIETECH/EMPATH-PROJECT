@@ -14,7 +14,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
     }
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', file, file.name);  // Include filename
 
     try {
         loading.style.display = 'block';
@@ -23,9 +23,17 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         const response = await fetch(`${API_URL}/analyze`, {
             method: 'POST',
             body: formData,
+            headers: {
+                'Accept': 'application/json'
+            }
         });
 
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
+        console.log('Server response:', data);  // Debug log
         
         loading.style.display = 'none';
         results.style.display = 'block';
@@ -38,13 +46,20 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             resultAlert.textContent = 'Model is still loading. Please try again in a few moments.';
         } else {
             resultAlert.className = 'alert alert-danger';
-            resultAlert.textContent = `Error: ${data.detail || 'Error processing the file. Please try again.'}`;
+            let errorMessage = 'Error processing the file. Please try again.';
+            
+            if (data.detail && typeof data.detail === 'object') {
+                errorMessage = data.detail.error;
+                console.error('Error details:', data.detail);
+            }
+            
+            resultAlert.textContent = errorMessage;
         }
     } catch (error) {
         loading.style.display = 'none';
         results.style.display = 'block';
         resultAlert.className = 'alert alert-danger';
-        resultAlert.textContent = 'Network error or server unavailable. Please try again later.';
+        resultAlert.textContent = `Error: ${error.message || 'Failed to process file'}`;
         console.error('Error:', error);
     }
 }); 

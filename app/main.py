@@ -64,14 +64,21 @@ def load_model():
             return False
         
         model_loading = True
+        print("Starting model loading...")
         model_path = BASE_DIR / "best_model.joblib"
+        print(f"Looking for model at: {model_path}")
+        
         if not model_path.exists():
+            print(f"Model file not found at {model_path}")
             raise FileNotFoundError(f"Model file not found at {model_path}")
+            
+        print("Loading model from file...")
         model = ContrastiveModel.load_model(str(model_path))
         model.to(device)
-        model.eval()
+        model.eval()  # Set to evaluation mode
         model_loaded = True
         model_loading = False
+        print("Model loaded successfully!")
         return True
     except Exception as e:
         print(f"Error loading model: {str(e)}")
@@ -81,8 +88,9 @@ def load_model():
 @app.on_event("startup")
 async def startup_event():
     print("Starting up FastAPI application...")
-    # Start model loading in background
-    BackgroundTasks().add_task(load_model)
+    # Load model immediately
+    if not load_model():
+        print("WARNING: Failed to load model during startup!")
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -114,7 +122,10 @@ async def health_check():
             "status": "healthy",
             "model_loaded": model_loaded,
             "model_loading": model_loading,
-            "model_file_exists": model_path.exists()
+            "model_file_exists": model_path.exists(),
+            "model_path": str(model_path),
+            "base_dir": str(BASE_DIR),
+            "device": str(device)
         }
     except Exception as e:
         return {
@@ -125,24 +136,52 @@ async def health_check():
 def process_edf_file(file_path):
     """Process a single EDF file and extract features"""
     try:
-        # Read EEG file using MNE
-        raw = mne.io.read_raw_edf(file_path, preload=True, verbose=False)
+        print(f"Processing file: {file_path}")
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
         
+        if os.path.getsize(file_path) == 0:
+            raise ValueError("File is empty")
+
+        # Read EEG file using MNE
+        try:
+            raw = mne.io.read_raw_edf(file_path, preload=True, verbose=False)
+        except Exception as e:
+            raise ValueError(f"Failed to read EDF file: {str(e)}")
+        
+        print(f"EDF file loaded successfully. Info: {raw.info}")
+        print(f"Channel names: {raw.ch_names}")
+        print(f"Sampling frequency: {raw.info['sfreq']} Hz")
+        
+        if len(raw.ch_names) < 1:
+            raise ValueError("No EEG channels found in the file")
+
         # Basic preprocessing
-        raw.filter(1, 40, fir_design='firwin')
+        try:
+            raw.filter(1, 40, fir_design='firwin')
+        except Exception as e:
+            raise ValueError(f"Failed to filter EEG data: {str(e)}")
         
         # Print number of channels for debugging
         print(f"Number of EEG channels: {len(raw.ch_names)}")
         
         # Extract features using the same function as training
-        features = extract_features(raw)
+        try:
+            features = extract_features(raw)
+        except Exception as e:
+            raise ValueError(f"Failed to extract features: {str(e)}")
         
         # Print feature shape for debugging
         print(f"Extracted features shape: {features.shape}")
         
         return features
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error processing EEG file: {str(e)}")
+        print(f"Error in process_edf_file: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        if isinstance(e, HTTPException):
+            raise e
+        raise ValueError(f"Error processing EEG file: {str(e)}")
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
@@ -152,51 +191,80 @@ async def analyze(file: UploadFile = File(...)):
                 status_code=503,
                 detail="Model is still loading. Please try again in a few moments."
             )
+
+        if not file or not file.filename:
+            raise HTTPException(status_code=400, detail="No file uploaded")
+
+        print(f"\n=== Starting Analysis ===")
+        print(f"File name: {file.filename}")
+        print(f"Content type: {file.content_type}")
+        
         if not file.filename.endswith('.edf'):
             raise HTTPException(status_code=400, detail="Invalid file format. Please upload an EDF file.")
 
-        # Create a unique temporary file name
         temp_dir = tempfile.gettempdir()
         temp_file_path = os.path.join(temp_dir, f"temp_{os.urandom(8).hex()}.edf")
         
         try:
             # Save the uploaded file
             content = await file.read()
+            if not content:
+                raise HTTPException(status_code=400, detail="Empty file uploaded")
+
             with open(temp_file_path, 'wb') as f:
                 f.write(content)
 
-            # Process the file using our feature extraction
+            if not os.path.exists(temp_file_path):
+                raise HTTPException(status_code=500, detail="Failed to save uploaded file")
+
+            # Process the file
             features = process_edf_file(temp_file_path)
+            
+            if features is None:
+                raise HTTPException(status_code=400, detail="Failed to extract features from file")
 
             # Print shapes for debugging
+            print(f"\n=== Feature Processing ===")
             print(f"Original features shape: {features.shape}")
             
             # Reshape features to match model input
             features = features.reshape(-1)  # Flatten the array
+            print(f"Flattened features shape: {features.shape}")
             
-            # Calculate number of features per channel (5 features: mean, std, power, peak_freq, hjorth)
+            # Calculate number of features per channel
             features_per_channel = 5
-            
-            # Take only the features we need (input_dim // features_per_channel channels)
             num_channels_needed = input_dim // features_per_channel
+            print(f"Number of channels needed: {num_channels_needed}")
             features = features[:num_channels_needed * features_per_channel]
             
             # Pad if we don't have enough features
             if len(features) < input_dim:
+                print(f"Padding features from {len(features)} to {input_dim}")
                 features = np.pad(features, (0, input_dim - len(features)))
             elif len(features) > input_dim:
+                print(f"Truncating features from {len(features)} to {input_dim}")
                 features = features[:input_dim]
 
+            print(f"\n=== Model Input ===")
             print(f"Final features shape: {features.shape}")
+            print(f"Feature statistics:")
+            print(f"- Mean: {features.mean():.4f}")
+            print(f"- Std: {features.std():.4f}")
+            print(f"- Min: {features.min():.4f}")
+            print(f"- Max: {features.max():.4f}")
 
             # Make prediction
             input_tensor = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+            print(f"\n=== Model Prediction ===")
             print(f"Input tensor shape: {input_tensor.shape}")
             
             with torch.no_grad():
                 output = model(input_tensor)
                 prediction = torch.argmax(output, dim=1).item()
+                print(f"Raw output: {output.numpy()}")
+                print(f"Prediction: {prediction}")
 
+            print("\n=== Analysis Complete ===")
             return JSONResponse({
                 'status': 'success',
                 'prediction': prediction,
@@ -214,7 +282,21 @@ async def analyze(file: UploadFile = File(...)):
     except Exception as e:
         # Log the error for debugging
         print(f"Error in analyze endpoint: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Full error traceback:\n{error_trace}")
+        # Return a more detailed error response
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "detail": {
+                    "error": str(e) or "Unknown error occurred",
+                    "traceback": error_trace,
+                    "type": type(e).__name__
+                }
+            }
+        )
 
 # Make sure app is available at module level
 if __name__ == "__main__":

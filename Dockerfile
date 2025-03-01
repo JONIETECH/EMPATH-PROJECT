@@ -21,6 +21,9 @@ RUN mkdir -p static templates
 RUN ls -la templates/
 RUN ls -la static/
 
+# Verify model file exists
+RUN ls -la best_model.joblib || echo "WARNING: Model file not found!"
+
 # Make port 8000 available
 EXPOSE 8000
 

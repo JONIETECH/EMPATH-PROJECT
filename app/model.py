@@ -25,38 +25,54 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def augment_eeg_signal(signal, sfreq):
     """Augment EEG signal with noise and shift"""
-    signal += np.random.normal(0, 0.02, signal.shape)  # Add noise
-    shift = np.random.randint(0, int(sfreq * 0.15))  # Time shift
-    signal = np.roll(signal, shift)
-    return signal
+    try:
+        signal += np.random.normal(0, 0.02, signal.shape)  # Add noise
+        shift = np.random.randint(0, int(sfreq * 0.15))  # Time shift
+        signal = np.roll(signal, shift)
+        return signal
+    except Exception as e:
+        print(f"Error in augment_eeg_signal: {str(e)}")
+        raise Exception(f"Signal augmentation failed: {str(e)}")
 
 def extract_features(raw):
     """Extract comprehensive features from EEG data"""
-    data = raw.get_data()
-    sfreq = raw.info['sfreq']
-    features = []
-    
-    for i in range(data.shape[0]):
-        signal_data = augment_eeg_signal(data[i], sfreq)
-        # Basic statistical features
-        mean_val = np.mean(signal_data)
-        std_val = np.std(signal_data)
-        power = np.sum(signal_data**2) / len(signal_data)
+    try:
+        data = raw.get_data()
+        sfreq = raw.info['sfreq']
+        features = []
         
-        # Frequency domain features
-        peak_freq = np.argmax(np.abs(np.fft.fft(signal_data))) * sfreq / len(signal_data)
+        print(f"Data shape: {data.shape}")
+        print(f"Sampling frequency: {sfreq}")
         
-        # Hjorth parameters
-        hjorth_mobility = np.sqrt(np.var(np.diff(signal_data)) / np.var(signal_data))
+        for i in range(data.shape[0]):
+            signal_data = augment_eeg_signal(data[i], sfreq)
+            # Basic statistical features
+            mean_val = np.mean(signal_data)
+            std_val = np.std(signal_data)
+            power = np.sum(signal_data**2) / len(signal_data)
+            
+            # Frequency domain features
+            peak_freq = np.argmax(np.abs(np.fft.fft(signal_data))) * sfreq / len(signal_data)
+            
+            # Hjorth parameters
+            hjorth_mobility = np.sqrt(np.var(np.diff(signal_data)) / np.var(signal_data))
+            
+            # Add wavelet features if available
+            if HAS_WAVELETS:
+                # Add your wavelet feature extraction here
+                pass
+            
+            features.extend([mean_val, std_val, power, peak_freq, hjorth_mobility])
         
-        # Add wavelet features if available
-        if HAS_WAVELETS:
-            # Add your wavelet feature extraction here
-            pass
+        features = np.array(features)
+        print(f"Extracted features shape before reshape: {features.shape}")
         
-        features.extend([mean_val, std_val, power, peak_freq, hjorth_mobility])
-    
-    return np.array(features)
+        return features
+    except Exception as e:
+        print(f"Error in extract_features: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        raise Exception(f"Feature extraction failed: {str(e)}")
 
 # Define your dataset class
 class CustomDataset(Dataset):
